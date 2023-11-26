@@ -1,4 +1,5 @@
 /target
+.vscode
 row.html
 Config.toml
 Cargo.lock
