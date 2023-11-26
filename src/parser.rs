@@ -1,5 +1,3 @@
-mod yahoojp_parser;
-
 use crate::error::Error;
 use crate::Posts;
 

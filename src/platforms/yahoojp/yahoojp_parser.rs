@@ -1,12 +1,14 @@
-use super::PostParser;
 use crate::error::Error;
+use crate::PostParser;
 use crate::{Post, Posts};
 
-use chrono::{Datelike, NaiveDate, NaiveTime};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime};
+use chrono_tz::Asia::Tokyo;
+
 use once_cell::sync::Lazy;
 use regex::Regex;
 use scraper::{Html, Selector};
-use tracing::info;
+use tracing::debug;
 
 static DATETIME_PAT_1: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\d{1,2}):(\d{1,2})").unwrap());
 static DATETIME_PAT_2: Lazy<Regex> = Lazy::new(|| Regex::new(r"昨日(\d{1,2}):(\d{1,2})").unwrap());
@@ -16,25 +18,22 @@ static DATETIME_PAT_3: Lazy<Regex> = Lazy::new(|| {
 static DATETIME_PAT_4: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\d{4})年(\d{1,2})月(\d{1,2})日").unwrap());
 
-/// 東京の現在の日付を取得
-fn today_tokyo() -> NaiveDate {
-    chrono::Utc::now()
-        .with_timezone(&chrono_tz::Asia::Tokyo)
-        .date_naive()
+/// 東京の今日の日付を取得
+fn today_jp() -> NaiveDate {
+    chrono::Utc::now().with_timezone(&Tokyo).date_naive()
 }
 
-/// 時間のパーサー
+/// 時間のパーサー．東京時間からローカルに変換する必要がある．
 fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTime>), Error> {
     let trim_pat: &[_] = &['\n', ' '];
     let trimmed = datetime_str.replace(trim_pat, "");
 
-    info!("trimmed datetime string: {}", trimmed);
+    debug!("trimmed datetime string: {}", trimmed);
 
     if let Some(captures) = DATETIME_PAT_1.captures(&trimmed) {
-        info!("PAT_1, captures: {:?}", captures);
-        let today_date = today_tokyo();
+        debug!("PAT_1, captures: {:?}", captures);
 
-        let time = {
+        let time_jp = {
             let hour = captures[1]
                 .parse::<u32>()
                 .map_err(|e| Error::ParseDatetimeError(e.to_string()))?;
@@ -44,12 +43,17 @@ fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTim
             NaiveTime::from_hms_opt(hour, min, 0)
                 .ok_or(Error::ParseDatetimeError("unexpected time".to_string()))?
         };
-        Ok((today_date, Some(time)))
+
+        let datetime_jp = NaiveDateTime::new(today_jp(), time_jp)
+            .and_local_timezone(Tokyo)
+            .unwrap(); // ?
+        let datetime_local = datetime_jp.with_timezone(&Local);
+
+        Ok((datetime_local.date_naive(), Some(datetime_local.time())))
     } else if let Some(captures) = DATETIME_PAT_2.captures(&trimmed) {
-        info!("PAT_2, captures: {:?}", captures);
-        let yesterday = today_tokyo() - chrono::Duration::days(1);
+        debug!("PAT_2, captures: {:?}", captures);
 
-        let time = {
+        let time_jp = {
             let hour = captures[1]
                 .parse::<u32>()
                 .map_err(|e| Error::ParseDatetimeError(e.to_string()))?;
@@ -59,11 +63,20 @@ fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTim
             NaiveTime::from_hms_opt(hour, min, 0)
                 .ok_or(Error::ParseDatetimeError("unexpected time".to_string()))?
         };
-        Ok((yesterday, Some(time)))
+
+        // 日付は昨日である．
+        let datetime_jp = NaiveDateTime::new(today_jp() - chrono::Duration::days(1), time_jp)
+            .and_local_timezone(Tokyo)
+            .unwrap();
+
+        let datetime_local = datetime_jp.with_timezone(&Local);
+
+        Ok((datetime_local.date_naive(), Some(datetime_local.time())))
     } else if let Some(captures) = DATETIME_PAT_3.captures(&trimmed) {
-        info!("PAT_3, captures: {:?}", captures);
-        let date = {
-            let this_year = today_tokyo().year();
+        debug!("PAT_3, captures: {:?}", captures);
+
+        let date_jp = {
+            let this_year = today_jp().year();
             let month = captures[1]
                 .parse::<u32>()
                 .map_err(|e| Error::ParseDatetimeError(e.to_string()))?;
@@ -73,7 +86,7 @@ fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTim
             NaiveDate::from_ymd_opt(this_year, month, day)
                 .ok_or(Error::ParseDatetimeError("unexpected date".to_string()))?
         };
-        let time = {
+        let time_jp = {
             let hour = captures[3]
                 .parse::<u32>()
                 .map_err(|e| Error::ParseDatetimeError(e.to_string()))?;
@@ -83,9 +96,14 @@ fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTim
             NaiveTime::from_hms_opt(hour, min, 0)
                 .ok_or(Error::ParseDatetimeError("unexpected time".to_string()))?
         };
-        Ok((date, Some(time)))
+        let datetime_jp = NaiveDateTime::new(date_jp, time_jp)
+            .and_local_timezone(Tokyo)
+            .unwrap();
+        let datetime_local = datetime_jp.with_timezone(&Local);
+
+        Ok((datetime_local.date_naive(), Some(datetime_local.time())))
     } else if let Some(captures) = DATETIME_PAT_4.captures(&trimmed) {
-        info!("PAT_4, captures: {:?}", captures);
+        debug!("PAT_4, captures: {:?}", captures);
         let date = {
             let year = captures[1]
                 .parse::<i32>()
@@ -99,6 +117,7 @@ fn yahoojp_time_parser(datetime_str: &str) -> Result<(NaiveDate, Option<NaiveTim
             NaiveDate::from_ymd_opt(year, month, day)
                 .ok_or(Error::ParseDatetimeError("unexpected date".to_string()))?
         };
+        // ローカルも一緒としかできない．
         Ok((date, None))
     } else {
         Err(Error::ParseDatetimeError(format!(
@@ -163,7 +182,7 @@ impl PostParser for YahooJpParser {
 
 #[cfg(test)]
 mod test {
-    use super::{today_tokyo, yahoojp_time_parser};
+    use super::{today_jp, yahoojp_time_parser};
     use tracing_test::traced_test;
 
     #[traced_test]
@@ -173,10 +192,7 @@ mod test {
 
         assert_eq!(
             yahoojp_time_parser("0:17").unwrap(),
-            (
-                today_tokyo(),
-                Some(NaiveTime::from_hms_opt(0, 17, 0).unwrap())
-            )
+            (today_jp(), Some(NaiveTime::from_hms_opt(0, 17, 0).unwrap()))
         );
 
         assert_eq!(
@@ -185,7 +201,7 @@ mod test {
             )
             .unwrap(),
             (
-                today_tokyo() - chrono::Duration::days(1),
+                today_jp() - chrono::Duration::days(1),
                 Some(NaiveTime::from_hms_opt(17, 12, 0).unwrap())
             )
         );
