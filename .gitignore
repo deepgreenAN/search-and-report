@@ -1,4 +1,9 @@
 /target
+/test_report
+/default_reports
+default_config.json
+report
+src/bin/test.rs
 .vscode
 row.html
 Config.toml

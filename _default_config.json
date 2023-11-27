@@ -1,0 +1,17 @@
+{
+  "search_and_reports": [
+    {
+      "keywords": [
+        "Rust"
+      ],
+      "cron": "0 0 6,12 * * * *",
+      "condition_n_per_h": 5,
+      "condition_contain": [
+        "CLI"
+      ],
+      "condition_latest_in_h": 1,
+      "report_json_dir": "./default_reports",
+      "report_os_content": "Reported matching the condition."
+    }
+  ]
+}

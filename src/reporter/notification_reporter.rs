@@ -9,8 +9,10 @@ pub struct NotificationReporter {
 }
 
 impl NotificationReporter {
-    pub fn new(content: String) -> Self {
-        Self { content }
+    pub fn new<S: Into<String>>(content: S) -> Self {
+        Self {
+            content: content.into(),
+        }
     }
 }
 

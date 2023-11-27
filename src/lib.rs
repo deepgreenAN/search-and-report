@@ -11,10 +11,10 @@ pub use reporter::Report;
 pub use request::RequestSource;
 
 use chrono::{NaiveDate, NaiveTime};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// ポストを表す型
-#[derive(Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Default)]
 pub struct Post {
     /// アカウント名
     pub author: String,
@@ -35,13 +35,23 @@ pub trait PlatForm {
 }
 
 /// 検索・リポート設定
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SearchConfig {
-    keywords: Vec<String>,
+    pub keywords: Vec<String>,
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        SearchConfig {
+            keywords: vec!["Rust".to_string()],
+        }
+    }
 }
 
 /// 検索とリポートを行う公開API
 pub async fn search_and_report<T: PlatForm, R: Report, P: Fn(&Posts) -> bool>(
     config: &SearchConfig,
+    _platform: T,
     reporter: &R,
     pred: P,
 ) -> Result<(), error::Error> {

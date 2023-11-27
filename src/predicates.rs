@@ -67,3 +67,60 @@ impl LatestPostTime {
         }
     }
 }
+
+/// ポスト内容に特定の文字列を含むかどうか．keywordsはorとして判定される．
+pub struct ContainsKeyWords {
+    keywords: Vec<String>,
+}
+
+impl ContainsKeyWords {
+    pub fn new(keywords: Vec<String>) -> Self {
+        Self { keywords }
+    }
+
+    /// 判定用のメソッド．O(N)
+    pub fn predicate(&self, posts: &Posts) -> bool {
+        posts.iter().any(|post| {
+            self.keywords
+                .iter()
+                .any(|keyword| post.content.contains(keyword))
+        })
+    }
+}
+
+/// 各種pred関数のリスト(Any)
+pub struct PredListAny {
+    inner_list: Vec<Box<dyn Fn(&Posts) -> bool + Send + Sync>>,
+}
+
+impl PredListAny {
+    pub fn new() -> Self {
+        Self {
+            inner_list: Vec::new(),
+        }
+    }
+    pub fn append_pred<P: Fn(&Posts) -> bool + Send + Sync + 'static>(&mut self, pred: P) {
+        self.inner_list
+            .push(Box::new(pred) as Box<dyn Fn(&Posts) -> bool + Send + Sync>);
+    }
+    /// 判定用のメソッド．
+    pub fn predicate(&self, posts: &Posts) -> bool {
+        self.inner_list.iter().any(|pred| pred(posts))
+    }
+}
+
+/// アプリとしては使わない．
+#[macro_export]
+macro_rules! pred_list_any {
+    ($($pred:expr),*) => {
+        {
+            let mut list = $crate::predicates::PredListAny::new();
+
+            $(
+                list.append_pred($pred);
+            )*
+
+            list
+        }
+    };
+}

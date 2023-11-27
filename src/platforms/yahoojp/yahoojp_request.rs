@@ -2,6 +2,7 @@ use crate::error::Error;
 use crate::RequestSource;
 
 use reqwest::Client;
+use tracing::info;
 
 /// Yahoojpに対応したリクエスト
 pub struct YahooJpRequest;
@@ -16,8 +17,11 @@ impl RequestSource for YahooJpRequest {
             &concat_keyword
         );
 
+        info!("Attempting request to {}.", url);
         let res = Client::new().get(&url).send().await?;
+        let text = res.text().await?;
 
-        Ok(res.text().await?)
+        info!("Finished request to {}.", url);
+        Ok(text)
     }
 }

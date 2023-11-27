@@ -41,3 +41,19 @@ impl Report for ReporterList {
         Ok(())
     }
 }
+
+/// アプリとしては使わない．
+#[macro_export]
+macro_rules! reporter_list {
+    ($($reporter:expr),*) => {
+        {
+            let mut list = $crate::reporter::ReporterList::new();
+
+            $(
+                list.append_reporter($reporter);
+            )*
+
+            list
+        }
+    };
+}
