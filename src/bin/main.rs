@@ -212,7 +212,7 @@ struct Arg {
     config: Option<String>,
 
     /// search and report immediately
-    #[arg(short, long, long, default_value_t = true)]
+    #[arg(short, long, long, default_value_t = false)]
     instant: bool,
 }
 

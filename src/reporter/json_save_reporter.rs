@@ -41,7 +41,7 @@ impl Report for JsonSaveReporter {
         let file_path = {
             let now = chrono::Local::now();
             let file_name = format!(
-                "report_{}_{}_{}_{}_{}_{:.0}.json",
+                "report_{:4}_{:02}_{:02}_{:02}_{:02}_{:02.0}.json",
                 now.year(),
                 now.month(),
                 now.day(),
