@@ -4,6 +4,7 @@
       "keywords": [
         "Rust"
       ],
+      "platform": "YahooJp",
       "cron": "0 0 6,12 * * * *",
       "condition_n_per_h": 5,
       "condition_contain": [
