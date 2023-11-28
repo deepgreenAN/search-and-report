@@ -51,7 +51,7 @@ impl Default for SearchConfig {
 /// 検索とリポートを行う公開API
 pub async fn search_and_report<T: PlatForm, R: Report, P: Fn(&Posts) -> bool>(
     config: &SearchConfig,
-    _platform: T,
+    _platform: &T,
     reporter: &R,
     pred: P,
 ) -> Result<(), error::Error> {

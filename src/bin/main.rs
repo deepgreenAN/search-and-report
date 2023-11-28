@@ -9,11 +9,37 @@ mod config {
     #[error("ConfigError: {0}")]
     pub struct ConfigError(pub String);
 
+    /// プラットフォームの判定を行う
+    #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+    #[serde(try_from = "String", into = "String")]
+    pub enum PlatForm {
+        YahooJp(search_and_report::platforms::YahooJp),
+    }
+
+    impl TryFrom<String> for PlatForm {
+        type Error = ConfigError;
+        fn try_from(value: String) -> Result<Self, Self::Error> {
+            match value.as_str() {
+                "YahooJp" => Ok(PlatForm::YahooJp(search_and_report::platforms::YahooJp)),
+                _ => Err(ConfigError("Unexpected platform.".to_string())),
+            }
+        }
+    }
+
+    impl From<PlatForm> for String {
+        fn from(value: PlatForm) -> Self {
+            match value {
+                PlatForm::YahooJp(_) => "YahooJp".to_string(),
+            }
+        }
+    }
+
     /// Configファイルの一要素．条件を複数指定した場合はORになる．
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
     pub struct SearchAndReportConfig {
         #[serde(flatten)]
         pub search_config: SearchConfig,
+        pub platform: PlatForm,
         pub cron: String,
         pub condition_n_per_h: Option<u32>,
         pub condition_contain: Option<Vec<String>>,
@@ -27,6 +53,7 @@ mod config {
         fn default() -> Self {
             SearchAndReportConfig {
                 search_config: Default::default(),
+                platform: PlatForm::YahooJp(Default::default()),
                 cron: "0 0 6,12 * * * *".to_string(),
                 condition_n_per_h: Some(5),
                 condition_contain: Some(vec!["CLI".to_string()]),
@@ -53,7 +80,7 @@ mod config {
 
     #[cfg(test)]
     mod test {
-        use super::{AllConfig, SearchAndReportConfig, SearchConfig};
+        use super::{AllConfig, PlatForm, SearchAndReportConfig, SearchConfig};
 
         #[tracing_test::traced_test]
         #[test]
@@ -63,6 +90,7 @@ mod config {
     "search_and_reports": [
         {
             "keywords": ["Rust"],
+            "platform": "YahooJp",
             "cron": "0 0 6 * * * *",
             "condition_n_per_h": 10,
             "condition_contain": ["CLI", "TUI"],
@@ -81,6 +109,7 @@ mod config {
                     search_config: SearchConfig {
                         keywords: vec!["Rust".to_string()],
                     },
+                    platform: PlatForm::YahooJp(Default::default()),
                     cron: "0 0 6 * * * *".to_string(),
                     condition_n_per_h: Some(10),
                     condition_contain: Some(vec!["CLI".to_string(), "TUI".to_string()]),
@@ -95,7 +124,7 @@ mod config {
     }
 }
 
-use config::{AllConfig, SearchAndReportConfig};
+use config::{AllConfig, PlatForm, SearchAndReportConfig};
 use search_and_report::{
     predicates::{self, PredListAny},
     reporter::{self, ReporterList},
@@ -117,6 +146,7 @@ async fn schedule_and_run_app(
     for search_and_report_config in search_and_reports.into_iter() {
         let SearchAndReportConfig {
             search_config,
+            platform,
             cron,
             condition_n_per_h,
             condition_contain,
@@ -158,44 +188,48 @@ async fn schedule_and_run_app(
             report_list.append_reporter(report);
         });
 
-        // 即時実行
-        if instant {
-            info!("search and report immediately.");
-            search_and_report::search_and_report(
-                &search_config,
-                search_and_report::platforms::YahooJp,
-                &report_list,
-                |posts| pred_list.predicate(posts),
-            )
-            .await?;
-        }
-
-        // スケジュール
-        let job = Job::new_async(cron.as_str(), {
+        // jobに渡すクロージャー
+        let job_closure = {
             let search_config = Arc::new(search_config);
+            let platform = Arc::new(platform);
             let report_list = Arc::new(report_list);
             let pred_list = Arc::new(pred_list);
 
             move |_id, _lock| {
                 let search_config = Arc::clone(&search_config);
+                let platform = Arc::clone(&platform);
                 let report_list = Arc::clone(&report_list);
                 let pred_list = Arc::clone(&pred_list);
 
                 Box::pin(async move {
-                    let res = search_and_report::search_and_report(
-                        &search_config,
-                        search_and_report::platforms::YahooJp,
-                        report_list.as_ref(),
-                        |posts| pred_list.predicate(posts),
-                    )
+                    // プラットフォームごとにマッチング
+                    let res = match platform.as_ref() {
+                        PlatForm::YahooJp(platform) => search_and_report::search_and_report(
+                            &search_config,
+                            platform,
+                            report_list.as_ref(),
+                            |posts| pred_list.predicate(posts),
+                        ),
+                    }
                     .await;
 
                     if let Err(e) = res {
                         tracing::error!("Error occurred. {:?}", e);
                     }
                 })
+                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>
+                // 明示
             }
-        })?;
+        };
+
+        // 即時実行
+        if instant {
+            info!("search and report immediately.");
+            job_closure(Default::default(), scheduler.clone()).await; // 引数は適当に与える
+        }
+
+        // スケジュール
+        let job = Job::new_async(cron.as_str(), job_closure)?;
 
         scheduler.add(job).await?;
     }

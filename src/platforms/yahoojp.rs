@@ -4,6 +4,7 @@ mod yahoojp_request;
 use crate::PlatForm;
 
 /// YahooJpの検索をおこなう．
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct YahooJp;
 
 impl PlatForm for YahooJp {
