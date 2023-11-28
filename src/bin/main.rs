@@ -278,6 +278,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // メインスレッドが終了しないように待つ
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
 }
