@@ -19,6 +19,9 @@ pub enum Error {
     /// OSに関するエラー
     #[error("Error::OsError: {0}")]
     OsError(String),
+    /// リポートするポストが存在しない場合のエラー
+    #[error("Error::NothingPostError: The posts is nothing to report.")]
+    NothingPostError,
 }
 
 impl<'token> From<scraper::error::SelectorErrorKind<'token>> for Error {

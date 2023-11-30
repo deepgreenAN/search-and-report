@@ -2,7 +2,8 @@ mod json_save_reporter;
 mod notification_reporter;
 
 pub use json_save_reporter::JsonSaveReporter;
-pub use notification_reporter::NotificationReporter;
+pub use notification_reporter::LatestPostNotificationReporter;
+pub use notification_reporter::StaticNotificationReporter;
 
 use crate::error::Error;
 use crate::Posts;

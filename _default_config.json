@@ -12,7 +12,8 @@
       ],
       "condition_latest_in_h": 1,
       "report_json_dir": "./default_reports",
-      "report_os_content": "Reported matching the condition."
+      "report_os_content": "Reported matching the condition.",
+      "report_os_latest": false
     }
   ]
 }

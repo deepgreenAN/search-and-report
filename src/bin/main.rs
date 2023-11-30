@@ -46,6 +46,8 @@ mod config {
         pub condition_latest_in_h: Option<u32>,
         pub report_json_dir: Option<String>,
         pub report_os_content: Option<String>,
+        #[serde(default)]
+        pub report_os_latest: bool,
     }
 
     /// このデフォルトはデフォルトのconfigファイルを作製する際に使われる．
@@ -60,6 +62,7 @@ mod config {
                 condition_latest_in_h: Some(1),
                 report_json_dir: Some("./default_reports".to_string()),
                 report_os_content: Some("Reported matching the condition.".to_string()),
+                report_os_latest: false,
             }
         }
     }
@@ -116,6 +119,7 @@ mod config {
                     condition_latest_in_h: None,
                     report_json_dir: Some("./my_reports".to_string()),
                     report_os_content: None,
+                    report_os_latest: false,
                 }],
             };
 
@@ -153,6 +157,7 @@ async fn schedule_and_run_app(
             condition_latest_in_h,
             report_json_dir,
             report_os_content,
+            report_os_latest,
         } = search_and_report_config;
 
         // Conditionについて
@@ -184,7 +189,11 @@ async fn schedule_and_run_app(
             report_list.append_reporter(report);
         });
         report_os_content.into_iter().for_each(|report_os_content| {
-            let report = reporter::NotificationReporter::new(report_os_content);
+            let report = reporter::StaticNotificationReporter::new(report_os_content);
+            report_list.append_reporter(report);
+        });
+        report_os_latest.then(|| {
+            let report = reporter::LatestPostNotificationReporter;
             report_list.append_reporter(report);
         });
 
